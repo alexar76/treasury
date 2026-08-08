@@ -1,0 +1,38 @@
+# MOMUS Treasury — standalone deploy (when the payer runs on a DIFFERENT host/operator than the
+# MOMUS scanner, which is the strongest form of the separation). Build from the MONOREPO ROOT:
+#     docker compose -f treasury/docker-compose.yml up -d --build
+services:
+  momus-treasury:
+    build:
+      context: ..
+      dockerfile: treasury/Dockerfile
+    environment:
+      TREASURY_PORT: "9401"
+      TREASURY_KEY_PATH: /data/treasury_signing_key
+      TREASURY_LEDGER_PATH: /data/bounty_ledger.jsonl
+      TREASURY_CORS_ORIGINS: ${TREASURY_CORS_ORIGINS:-*}
+      # The pubkeys of independently-operated verifiers (e.g. Metis) whose confirmation is required
+      # for high/critical payouts.
+      MOMUS_EXTERNAL_VERIFIERS: ${MOMUS_EXTERNAL_VERIFIERS:-}
+      AIFACTORY_PROD: ${AIFACTORY_PROD:-1}
+      # Real settlement stays off until an operator wires it; until then decisions are HELD intents.
+      AIFACTORY_CRYPTO_ENABLED: ${AIFACTORY_CRYPTO_ENABLED:-0}
+      # Advisory decision-explainer (never in the payout path): DeepSeek V4 Pro by default.
+      TREASURY_LLM_PROVIDER: ${TREASURY_LLM_PROVIDER:-deepseek}
+      MOMUS_LLM_MODEL: ${MOMUS_LLM_MODEL:-deepseek-v4-pro}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+    volumes:
+      - treasury-keys:/data
+    ports:
+      - "127.0.0.1:9401:9401"
+    restart: unless-stopped
+    networks:
+      - default
+      - ecosystem
+
+volumes:
+  treasury-keys:
+
+networks:
+  ecosystem:
+    external: true
