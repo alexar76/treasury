@@ -2,7 +2,7 @@
 
 <!-- aicom-readme-badges -->
 <p align="center">
-  <a href="https://github.com/alexar76/treasury/actions/workflows/ci.yml"><img src="docs/badges/ci.svg" alt="CI passing" /></a>
+  <a href="https://github.com/alexar76/treasury/actions/workflows/ci.yml"><img src="https://github.com/alexar76/treasury/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
   <a href="https://github.com/alexar76/momus"><img src="docs/badges/momus.svg" alt="Pays MOMUS findings" /></a>
   <img src="docs/badges/separation.svg" alt="Duties separated" />
   <img src="docs/badges/python.svg" alt="Python >=3.11" />

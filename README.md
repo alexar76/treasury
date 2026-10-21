@@ -9,7 +9,7 @@
 
 <!-- aicom-readme-badges -->
 <p align="center">
-  <a href="https://github.com/alexar76/treasury/actions/workflows/ci.yml"><img src="https://raw.githubusercontent.com/alexar76/treasury/refs/heads/main/docs/badges/ci.svg" alt="CI" /></a>
+  <a href="https://github.com/alexar76/treasury/actions/workflows/ci.yml"><img src="https://github.com/alexar76/treasury/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
   <a href="https://alexar76.github.io/treasury/"><img src="https://raw.githubusercontent.com/alexar76/treasury/refs/heads/main/docs/badges/landing.svg" alt="Landing" /></a>
   <a href="https://github.com/alexar76/momus"><img src="https://raw.githubusercontent.com/alexar76/treasury/refs/heads/main/docs/badges/momus.svg" alt="Pays MOMUS findings" /></a>
   <img src="https://raw.githubusercontent.com/alexar76/treasury/refs/heads/main/docs/badges/python.svg" alt="Python >=3.11" />
