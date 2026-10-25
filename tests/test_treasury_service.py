@@ -36,7 +36,8 @@ def treasury_client(tmp_path, monkeypatch):
     from treasury import service as svc
     importlib.reload(svc)
     app = svc.build_app()
-    client = httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://tr.local")
+    # No TREASURY_CLIENT_TOKEN: the payout routes answer this machine's own user only.
+    client = httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://localhost")
     return client, ext, str(tmp_path)
 
 
@@ -181,3 +182,25 @@ def test_a_held_fallback_leaves_the_vault_off(monkeypatch, tmp_path):
     s = SettlementBackend.from_env(crypto_enabled=True)
     assert s.mode is SettlementMode.BASE and s.fallback != FALLBACK_SANDBOX
     assert not (s.mode is SettlementMode.UNI or s.fallback == FALLBACK_SANDBOX)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "peer, base_url, headers",
+    [
+        ("93.184.216.34", "http://localhost", {}),  # another machine: the service binds 0.0.0.0
+        ("127.0.0.1", "http://treasury.example", {}),  # a rebinding name
+        ("127.0.0.1", "http://localhost", {"X-Forwarded-For": "93.184.216.34"}),  # via a local proxy
+        ("127.0.0.1", "http://localhost", {"Origin": "https://evil.example"}),  # a page in a browser
+    ],
+)
+async def test_tokenless_payout_routes_refuse_all_but_this_machine(treasury_client, peer, base_url, headers):
+    _client, _ext, _ = treasury_client
+    from treasury import service as svc
+    app = svc.build_app()
+    transport = httpx.ASGITransport(app=app, client=(peer, 40000))
+    async with httpx.AsyncClient(transport=transport, base_url=base_url, headers=headers) as c:
+        assert (await c.post("/vault/fund", json={"amount_usd": 200.0})).status_code == 403
+        assert (await c.post("/vault/top-up")).status_code == 403
+        assert (await c.post("/authorize", json={"finding": {}, "verdicts": []})).status_code == 403
+        assert (await c.get("/vault")).json()["balance_usd"] == 0.0

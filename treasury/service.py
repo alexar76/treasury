@@ -17,6 +17,7 @@ is signed with the treasury key alone.
 from __future__ import annotations
 
 import hmac
+import ipaddress
 import os
 from typing import Any
 
@@ -52,6 +53,41 @@ def _finding_from_dict(d: dict[str, Any]) -> Finding:
 def _verdict_from_dict(d: dict[str, Any]) -> Verdict:
     fields = {k: d.get(k) for k in Verdict.__dataclass_fields__ if k in d}
     return Verdict(**fields)
+
+
+_LOOPBACK_NAMES = frozenset({"localhost", "127.0.0.1", "::1"})
+_FORWARDING_HEADERS = ("x-forwarded-for", "x-real-ip", "forwarded", "x-forwarded-host")
+
+
+def _host_is_loopback(hostport: str) -> bool:
+    """`localhost[:port]`, `127.0.0.1[:port]` or `[::1][:port]`, as a Host header or netloc."""
+    value = hostport.strip().lower()
+    if value.startswith("["):
+        host = value[1:value.find("]")] if "]" in value else ""
+    else:
+        host = value.rsplit(":", 1)[0] if value.count(":") == 1 else value
+    return host in _LOOPBACK_NAMES
+
+
+def _local_caller(request: Request) -> bool:
+    """The machine's own user: a loopback packet with a loopback Host, no forwarding headers
+    (behind nginx on this host every caller's packet is from 127.0.0.1) and no Origin but a
+    loopback page (CORS is open, so a site in that user's browser can POST here too)."""
+    peer = request.client.host if request.client else ""
+    try:
+        if not ipaddress.ip_address(peer).is_loopback:
+            return False
+    except ValueError:
+        return False
+    if any(h in request.headers for h in _FORWARDING_HEADERS):
+        return False
+    if not _host_is_loopback(request.headers.get("host", "")):
+        return False
+    origin = request.headers.get("origin")
+    if origin is None:
+        return True
+    scheme, _, rest = origin.strip().partition("://")
+    return scheme in ("http", "https") and _host_is_loopback(rest.split("/", 1)[0])
 
 
 def build_app() -> FastAPI:
@@ -127,7 +163,15 @@ def build_app() -> FastAPI:
                     status_code=503,
                     detail="TREASURY_CLIENT_TOKEN is unset — refusing payout requests in production "
                            "(fail-closed). Configure it on both the Treasury and MOMUS.")
-            return  # dev convenience only
+            # Dev convenience, for this machine only. Any caller used to get a treasury-signed
+            # decision and fund the vault here, and the service binds 0.0.0.0 (the class of
+            # Vulnetix GCVE-110-PYPI-2026-018883, CWE-306).
+            if not _local_caller(request):
+                raise HTTPException(
+                    status_code=403,
+                    detail="TREASURY_CLIENT_TOKEN is unset, so only callers on this machine may "
+                           "use the payout routes.")
+            return
         supplied = (request.headers.get("x-treasury-client") or "").strip()
         # Constant-time: this token authorizes a payout authorization on the service that
         # holds the Treasury key.
@@ -149,7 +193,8 @@ def build_app() -> FastAPI:
     async def health() -> dict[str, Any]:
         return {"status": "ok", "service": "treasury", "version": __version__,
                 "treasury_pubkey": keyring.treasury_pubkey,
-                # Whether the payout routes require a caller token (armed in prod).
+                # Whether the payout routes require a caller token (armed in prod). Without one
+                # they still answer only callers on this machine.
                 "write_gated": bool(client_token) or is_prod(),
                 "registered_scanners": len(allowed_scanners),
                 "crypto_enabled": crypto_enabled(), "prod": is_prod(),

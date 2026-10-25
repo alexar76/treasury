@@ -11,4 +11,4 @@ requirement, re-checks the dedup ledger, and only then — with ITS key — sign
 It trusts nothing MOMUS asserts except the signed documents, whose signatures it checks itself.
 """
 
-__version__ = "0.1.0"
+__version__ = "0.1.2"
