@@ -4,6 +4,8 @@ key, and refuses tampered claims."""
 from __future__ import annotations
 
 import dataclasses
+import os
+import sys
 
 import httpx
 import pytest
@@ -204,3 +206,39 @@ async def test_tokenless_payout_routes_refuse_all_but_this_machine(treasury_clie
         assert (await c.post("/vault/top-up")).status_code == 403
         assert (await c.post("/authorize", json={"finding": {}, "verdicts": []})).status_code == 403
         assert (await c.get("/vault")).json()["balance_usd"] == 0.0
+
+
+_TABLE_HEADER = ("  sl  local_address rem_address   st tx_queue rx_queue tr tm->when retrnsmt"
+                 "   uid  timeout inode\n")
+
+
+def _socket_table(tmp_path, caller: str, server: str, uid):
+    """A /proc/net/tcp holding the server's end of the connection (ours) and the caller's end
+    owned by `uid`, or no caller's end when uid is None. Endpoints in the kernel's format."""
+    row = "   {n}: {a} {b} 01 00000000:00000000 00:00000000 00000000  {u}        0 {n}00 1 0 20 4 30 10 -1\n"
+    lines = [_TABLE_HEADER, row.format(n=1, a=server, b=caller, u=os.geteuid())]
+    if uid is not None:
+        lines.append(row.format(n=2, a=caller, b=server, u=uid))
+    path = tmp_path / "tcp"
+    path.write_text("".join(lines))
+    return (str(path),)
+
+
+@pytest.mark.asyncio
+@pytest.mark.skipif(not hasattr(os, "geteuid") or sys.byteorder != "little", reason="POSIX table")
+@pytest.mark.parametrize("owner", ["self", "other", "absent"])
+async def test_tokenless_payout_routes_refuse_a_proxy_running_as_another_user(treasury_client, monkeypatch,
+                                                                              tmp_path, owner):
+    # nginx's default proxy_pass on this host sends a loopback Host and no forwarding header,
+    # so only the owner of the caller's socket tells its workers from a local client.
+    _client, _ext, _ = treasury_client
+    from treasury import service as svc
+
+    uid = {"self": os.geteuid(), "other": os.geteuid() + 1, "absent": None}[owner]
+    # 127.0.0.1:40000 -> 127.0.0.1:80 (the ASGI client's default port)
+    monkeypatch.setattr(svc, "_PROC_NET_TCP", _socket_table(tmp_path, "0100007F:9C40", "0100007F:0050", uid))
+    app = svc.build_app()
+    transport = httpx.ASGITransport(app=app, client=("127.0.0.1", 40000))
+    async with httpx.AsyncClient(transport=transport, base_url="http://localhost") as c:
+        status = (await c.post("/vault/fund", json={"amount_usd": 200.0})).status_code
+    assert (status == 403) is (owner != "self")

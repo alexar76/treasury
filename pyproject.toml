@@ -6,7 +6,7 @@ name = "aimarket-treasury"
 # Bumped because the tree diverged from the published 0.1.0 wheel: `pip install
 # aimarket-treasury==0.1.0` served code this tree had already moved past, at the same version
 # string, so every fix in it was unpublishable and unreachable.
-version = "0.1.2"
+version = "0.1.3"
 description = "MOMUS Treasury — the separate payer role that releases red-team bounties only on independent verification; MOMUS finds and signs, the Treasury (its own key) pays"
 readme = "README.md"
 requires-python = ">=3.11"
