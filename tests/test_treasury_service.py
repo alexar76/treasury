@@ -37,6 +37,10 @@ def treasury_client(tmp_path, monkeypatch, local_http_opt_in):
     import importlib
     from treasury import service as svc
     importlib.reload(svc)
+    # The reload restores the real /proc/net/tcp paths that conftest replaced. On Linux the
+    # kernel table then exists without the fake ASGI caller in it, and every payout route
+    # answered "configure TREASURY_CLIENT_TOKEN"; on macOS there is no table, so it passed.
+    monkeypatch.setattr(svc, "_PROC_NET_TCP", ())
     app = svc.build_app()
     # This fixture explicitly opts into keyless local TCP for payout behavior tests.
     client = httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://localhost")
