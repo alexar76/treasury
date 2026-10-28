@@ -25,7 +25,7 @@ def _confirm(vs, f):
 
 
 @pytest.fixture
-def treasury_client(tmp_path, monkeypatch):
+def treasury_client(tmp_path, monkeypatch, local_http_opt_in):
     from momus.findings import FindingSigner
     ext = FindingSigner(str(tmp_path / "ext.key"))
     monkeypatch.setenv("TREASURY_KEY_PATH", str(tmp_path / "treasury.key"))
@@ -38,7 +38,7 @@ def treasury_client(tmp_path, monkeypatch):
     from treasury import service as svc
     importlib.reload(svc)
     app = svc.build_app()
-    # No TREASURY_CLIENT_TOKEN: the payout routes answer this machine's own user only.
+    # This fixture explicitly opts into keyless local TCP for payout behavior tests.
     client = httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://localhost")
     return client, ext, str(tmp_path)
 
@@ -226,19 +226,67 @@ def _socket_table(tmp_path, caller: str, server: str, uid):
 
 @pytest.mark.asyncio
 @pytest.mark.skipif(not hasattr(os, "geteuid") or sys.byteorder != "little", reason="POSIX table")
-@pytest.mark.parametrize("owner", ["self", "other", "absent"])
-async def test_tokenless_payout_routes_refuse_a_proxy_running_as_another_user(treasury_client, monkeypatch,
-                                                                              tmp_path, owner):
-    # nginx's default proxy_pass on this host sends a loopback Host and no forwarding header,
-    # so only the owner of the caller's socket tells its workers from a local client.
+@pytest.mark.parametrize("owner,opt_in,want", [
+    ("self", False, 403), ("self", True, 200), ("other", True, 403), ("absent", True, 403),
+])
+async def test_tokenless_payout_requires_explicit_tcp_trust_and_matching_owner(
+    treasury_client, monkeypatch, tmp_path, owner, opt_in, want
+):
     _client, _ext, _ = treasury_client
     from treasury import service as svc
 
+    monkeypatch.setenv("TREASURY_LOCAL_RELAY", "1" if opt_in else "0")
     uid = {"self": os.geteuid(), "other": os.geteuid() + 1, "absent": None}[owner]
-    # 127.0.0.1:40000 -> 127.0.0.1:80 (the ASGI client's default port)
     monkeypatch.setattr(svc, "_PROC_NET_TCP", _socket_table(tmp_path, "0100007F:9C40", "0100007F:0050", uid))
     app = svc.build_app()
     transport = httpx.ASGITransport(app=app, client=("127.0.0.1", 40000))
     async with httpx.AsyncClient(transport=transport, base_url="http://localhost") as c:
         status = (await c.post("/vault/fund", json={"amount_usd": 200.0})).status_code
-    assert (status == 403) is (owner != "self")
+    assert status == want
+
+
+async def test_tokenless_payout_routes_refused_where_the_socket_owner_cannot_be_read(treasury_client, monkeypatch):
+    # Vulnetix GCVE-110-VULN-PYPI-2026-000642: without /proc/net/tcp (macOS, Windows) every
+    # loopback caller passed. It is refused now, unless the operator opts in.
+    from treasury import service as svc
+
+    monkeypatch.setattr(svc, "_PROC_NET_TCP", ())
+    monkeypatch.delenv("TREASURY_LOCAL_UNVERIFIED", raising=False)
+    monkeypatch.delenv("TREASURY_LOCAL_RELAY", raising=False)
+    app = svc.build_app()
+    transport = httpx.ASGITransport(app=app, client=("127.0.0.1", 40000))
+    async with httpx.AsyncClient(transport=transport, base_url="http://localhost") as c:
+        async def fund_status():
+            return (await c.post("/vault/fund", json={"amount_usd": 200.0})).status_code
+        assert await fund_status() == 403
+        monkeypatch.setenv("TREASURY_LOCAL_UNVERIFIED", "1")
+        assert await fund_status() == 403
+        monkeypatch.setenv("TREASURY_LOCAL_RELAY", "1")
+        monkeypatch.delenv("TREASURY_LOCAL_UNVERIFIED")
+        assert await fund_status() == 403
+        monkeypatch.setenv("TREASURY_LOCAL_UNVERIFIED", "1")
+        assert await fund_status() == 200
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("production,token,supplied,want", [
+    (False, "operator-secret", "", 403),
+    (False, "operator-secret", "wrong-secret", 403),
+    (False, "operator-secret", "operator-secret", 200),
+    (True, "", "", 503),
+    (True, "operator-secret", "operator-secret", 200),
+])
+async def test_token_and_production_take_precedence_over_local_opt_ins(
+    treasury_client, monkeypatch, production, token, supplied, want
+):
+    from treasury import service as svc
+
+    monkeypatch.setenv("AIFACTORY_PROD", "1" if production else "0")
+    monkeypatch.setenv("TREASURY_CLIENT_TOKEN", token)
+    monkeypatch.setenv("TREASURY_LOCAL_RELAY", "1")
+    monkeypatch.setenv("TREASURY_LOCAL_UNVERIFIED", "1")
+    app = svc.build_app()
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://localhost") as c:
+        response = await c.post("/vault/fund", json={"amount_usd": 200.0},
+                                headers={"X-Treasury-Client": supplied})
+    assert response.status_code == want

@@ -76,18 +76,25 @@ def _proc_endpoint(field: str) -> tuple[str, int]:
     return str(addr), int(hexport, 16)
 
 
-def _caller_is_this_user(conn: Request) -> bool:
-    """The caller's socket belongs to the user this server runs as.
+def _flag(name: str) -> bool:
+    return (os.environ.get(name) or "").strip().lower() in ("1", "true", "yes", "on")
 
-    A reverse proxy on this machine connects over loopback too, and nginx's default proxy_pass
-    sends the upstream's own Host (127.0.0.1:port) and no forwarding header, so nothing in the
-    request tells it from a local client (Vulnetix, on GCVE-110-PYPI-2026-018883). Its workers
-    run as their own user, and on Linux the kernel records which user owns each socket. A proxy
-    running as this same user, or a system without the table (macOS, Windows), still needs a key
-    to be told apart. A connection the table does not show is refused."""
+
+def _caller_is_this_user(conn: Request) -> bool:
+    """Allow explicitly trusted local TCP callers whose socket belongs to this user.
+
+    TCP ownership cannot distinguish a direct client from an arbitrary same-user relay:
+    a worker may hold no listener and its program name proves nothing. Therefore keyless
+    TCP is refused unless TREASURY_LOCAL_RELAY=1 explicitly trusts that boundary
+    (GCVE-110-VULN-PYPI-2026-000642). Without a socket table, the additional
+    TREASURY_LOCAL_UNVERIFIED=1 opt-in is required. A known different owner or an
+    unmatched connection is always refused. Prefer a configured token to either opt-in.
+    """
+    if not _flag("TREASURY_LOCAL_RELAY"):
+        return False
     tables = [p for p in _PROC_NET_TCP if os.path.exists(p)]
     if not tables:
-        return True
+        return _flag("TREASURY_LOCAL_UNVERIFIED")
     client = conn.client
     if not client:
         return False
@@ -105,14 +112,16 @@ def _caller_is_this_user(conn: Request) -> bool:
                 next(fh, None)  # the header line
                 for line in fh:
                     f = line.split()
-                    if len(f) < 8 or f[3] != "01":  # 01 = ESTABLISHED
+                    if len(f) < 10 or f[3] != "01":  # 01 = ESTABLISHED
                         continue
                     try:
                         if _proc_endpoint(f[1]) != want:
                             continue
                         if server_port is not None and _proc_endpoint(f[2])[1] != int(server_port):
                             continue
-                        return int(f[7]) == os.geteuid()
+                        if int(f[7]) != os.geteuid():
+                            return False
+                        return True
                     except ValueError:
                         continue
         except OSError:
@@ -131,11 +140,9 @@ def _host_is_loopback(hostport: str) -> bool:
 
 
 def _local_caller(request: Request) -> bool:
-    """The machine's own user: a loopback packet with a loopback Host, no forwarding headers
-    (behind nginx on this host every caller's packet is from 127.0.0.1), no Origin but a
-    loopback page (CORS is open, so a site in that user's browser can POST here too) and, on
-    Linux, a socket owned by this server's user (nginx's default proxy_pass sends a loopback
-    Host and no forwarding header; its workers run as their own user)."""
+    """Explicitly trusted keyless loopback TCP, with local Host/Origin and no
+    forwarding headers. Socket ownership still must match, unless separately opted out.
+    """
     peer = request.client.host if request.client else ""
     try:
         if not ipaddress.ip_address(peer).is_loopback:
@@ -227,14 +234,12 @@ def build_app() -> FastAPI:
                     status_code=503,
                     detail="TREASURY_CLIENT_TOKEN is unset — refusing payout requests in production "
                            "(fail-closed). Configure it on both the Treasury and MOMUS.")
-            # Dev convenience, for this machine only. Any caller used to get a treasury-signed
-            # decision and fund the vault here, and the service binds 0.0.0.0 (the class of
-            # Vulnetix GCVE-110-PYPI-2026-018883, CWE-306).
+            # Keyless local TCP requires explicit trust in this machine and its relays.
             if not _local_caller(request):
                 raise HTTPException(
                     status_code=403,
-                    detail="TREASURY_CLIENT_TOKEN is unset, so only callers on this machine may "
-                           "use the payout routes.")
+                    detail="Configure TREASURY_CLIENT_TOKEN to use payout routes. Keyless local TCP "
+                           "requires explicit TREASURY_LOCAL_RELAY=1 trust.")
             return
         supplied = (request.headers.get("x-treasury-client") or "").strip()
         # Constant-time: this token authorizes a payout authorization on the service that
@@ -258,7 +263,7 @@ def build_app() -> FastAPI:
         return {"status": "ok", "service": "treasury", "version": __version__,
                 "treasury_pubkey": keyring.treasury_pubkey,
                 # Whether the payout routes require a caller token (armed in prod). Without one
-                # they still answer only callers on this machine.
+                # they still answer only explicitly trusted local TCP callers.
                 "write_gated": bool(client_token) or is_prod(),
                 "registered_scanners": len(allowed_scanners),
                 "crypto_enabled": crypto_enabled(), "prod": is_prod(),

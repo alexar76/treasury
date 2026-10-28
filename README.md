@@ -256,6 +256,7 @@ verification script, not just configured.
 |---|---|---|
 | `TREASURY_KEY_PATH` | the treasury signing key — the one key that can release a bounty | `data/treasury_signing_key` |
 | `TREASURY_CLIENT_TOKEN` | caller token for every write route; **unset in prod ⇒ `503`, fail-closed** | unset |
+| `TREASURY_LOCAL_RELAY` / `TREASURY_LOCAL_UNVERIFIED` | HTTP writes require `TREASURY_CLIENT_TOKEN` by default, including loopback. `TREASURY_LOCAL_RELAY=1` explicitly trusts keyless local TCP, including same-user proxies/tunnels; socket ownership must match. If the socket table is absent (macOS/Windows), also set `TREASURY_LOCAL_UNVERIFIED=1`. Known different owners and unmatched sockets are refused. Production always requires a token (since 0.1.4) | unset |
 | `TREASURY_SCANNER_PUBKEYS` | comma-separated allowlist of claimant scanner keys | unset = any |
 | `MOMUS_EXTERNAL_VERIFIERS` | pubkeys of independently-operated verifiers; required for high/critical in prod | unset |
 | `TREASURY_LEDGER_PATH` | append-only decision/claim ledger | `data/bounty_ledger.jsonl` |

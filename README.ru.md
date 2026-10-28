@@ -261,6 +261,7 @@ loopback и стоит за периметром
 |---|---|---|
 | `TREASURY_KEY_PATH` | ключ подписи казначейства — единственный ключ, которым можно выдать вознаграждение | `data/treasury_signing_key` |
 | `TREASURY_CLIENT_TOKEN` | токен вызывающей стороны для каждого маршрута записи; **не задан в проде ⇒ `503`, fail-closed** | не задана |
+| `TREASURY_LOCAL_RELAY` / `TREASURY_LOCAL_UNVERIFIED` | HTTP-запись по умолчанию требует `TREASURY_CLIENT_TOKEN`, включая loopback. `TREASURY_LOCAL_RELAY=1` явно разрешает локальный TCP без токена, включая прокси и туннели пользователя сервера; владелец сокета должен совпадать. Без таблицы сокетов (macOS/Windows) дополнительно нужен `TREASURY_LOCAL_UNVERIFIED=1`. Другой известный владелец и ненайденный сокет означают отказ. В production токен обязателен (с 0.1.4) | не задан |
 | `TREASURY_SCANNER_PUBKEYS` | allowlist (белый список) ключей сканеров-заявителей, через запятую | не задана = любой |
 | `MOMUS_EXTERNAL_VERIFIERS` | публичные ключи независимо управляемых верификаторов; обязательны для high/critical в проде | не задана |
 | `TREASURY_LEDGER_PATH` | реестр решений/заявлений, только на дозапись | `data/bounty_ledger.jsonl` |

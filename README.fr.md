@@ -262,6 +262,7 @@ vérification de production, pas seulement configuré.
 |---|---|---|
 | `TREASURY_KEY_PATH` | la clé de signature de la trésorerie — la seule clé qui puisse libérer une prime | `data/treasury_signing_key` |
 | `TREASURY_CLIENT_TOKEN` | jeton de l'appelant pour chaque route d'écriture ; **non défini en prod ⇒ `503`, fail-closed** | non défini |
+| `TREASURY_LOCAL_RELAY` / `TREASURY_LOCAL_UNVERIFIED` | Les écritures HTTP exigent `TREASURY_CLIENT_TOKEN` par défaut, y compris sur loopback. `TREASURY_LOCAL_RELAY=1` autorise explicitement le TCP local sans jeton, y compris les proxies/tunnels du même utilisateur ; le propriétaire du socket doit correspondre. Sans table de sockets (macOS/Windows), `TREASURY_LOCAL_UNVERIFIED=1` est aussi requis. Un autre propriétaire connu ou un socket introuvable entraîne un refus. En production, le jeton reste obligatoire (depuis 0.1.4) | non défini |
 | `TREASURY_SCANNER_PUBKEYS` | allowlist, séparée par des virgules, des clés de scanner réclamantes | non défini = n'importe laquelle |
 | `MOMUS_EXTERNAL_VERIFIERS` | clés publiques de vérificateurs exploités indépendamment ; requises pour high/critical en prod | non défini |
 | `TREASURY_LEDGER_PATH` | registre en ajout seul des décisions/réclamations | `data/bounty_ledger.jsonl` |

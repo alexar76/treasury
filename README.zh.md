@@ -227,6 +227,7 @@ cd treasury && pip install -e ../oracles/core -e ../momus -e ".[dev]" && python 
 |---|---|---|
 | `TREASURY_KEY_PATH` | 金库签名密钥 —— 唯一能够释放赏金的那把密钥 | `data/treasury_signing_key` |
 | `TREASURY_CLIENT_TOKEN` | 每一个写路由的调用方令牌；**在生产环境中未设置 ⇒ `503`，fail-closed（默认拒绝）** | 未设置 |
+| `TREASURY_LOCAL_RELAY` / `TREASURY_LOCAL_UNVERIFIED` | HTTP 写入默认需要 `TREASURY_CLIENT_TOKEN`，包括回环连接。`TREASURY_LOCAL_RELAY=1` 显式信任无令牌的本地 TCP，包括同用户的代理和隧道；套接字所有者必须匹配。没有套接字表时（macOS/Windows），还需 `TREASURY_LOCAL_UNVERIFIED=1`。已知其他所有者或找不到匹配连接时均拒绝。生产环境始终需要令牌（自 0.1.4 起） | 未设置 |
 | `TREASURY_SCANNER_PUBKEYS` | 主张方扫描器密钥的逗号分隔 allowlist（白名单） | 未设置 = 任意 |
 | `MOMUS_EXTERNAL_VERIFIERS` | 独立运营的验证方公钥；生产环境中 high/critical 必需 | 未设置 |
 | `TREASURY_LEDGER_PATH` | 只追加的决定/主张账本 | `data/bounty_ledger.jsonl` |

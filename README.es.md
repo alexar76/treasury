@@ -261,6 +261,7 @@ verificación de producción, no está solo configurado.
 |---|---|---|
 | `TREASURY_KEY_PATH` | la clave de firma de la tesorería — la única clave que puede liberar una recompensa | `data/treasury_signing_key` |
 | `TREASURY_CLIENT_TOKEN` | token del llamante para toda ruta de escritura; **sin definir en producción ⇒ `503`, fail-closed** | sin definir |
+| `TREASURY_LOCAL_RELAY` / `TREASURY_LOCAL_UNVERIFIED` | Las escrituras HTTP requieren `TREASURY_CLIENT_TOKEN` por defecto, incluso en loopback. `TREASURY_LOCAL_RELAY=1` confía explícitamente en TCP local sin token, incluidos proxies/túneles del mismo usuario; el dueño del socket debe coincidir. Sin tabla de sockets (macOS/Windows), también se requiere `TREASURY_LOCAL_UNVERIFIED=1`. Otro dueño conocido o un socket sin coincidencia se rechazan. Producción siempre requiere token (desde 0.1.4) | sin definir |
 | `TREASURY_SCANNER_PUBKEYS` | allowlist (lista blanca) de claves de escáner de reclamantes, separadas por comas | sin definir = cualquiera |
 | `MOMUS_EXTERNAL_VERIFIERS` | claves públicas de verificadores operados de forma independiente; obligatorias para high/critical en producción | sin definir |
 | `TREASURY_LEDGER_PATH` | libro de registro de solo adición de decisiones/reclamaciones | `data/bounty_ledger.jsonl` |
