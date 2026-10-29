@@ -1,10 +1,3 @@
-<!-- aicom-mirror-notice -->
-> **🔄 Synced from a monorepo — but with a live history.** `treasury` mirrors the
-> canonical AI-Factory monorepo. History here is append-only (no force-push).
-> **Pull requests are welcome** — merged PRs are imported back into the monorepo
-> and re-synced here, so your contribution becomes canonical.
-> 💬 **[Issues](https://github.com/alexar76/treasury/issues)** · **[Pull requests](https://github.com/alexar76/treasury/pulls)** both welcome.
-
 # Treasury
 
 <!-- aicom-readme-badges -->
@@ -18,6 +11,9 @@
   <a href="https://github.com/alexar76/treasury/blob/main/LICENSE"><img src="https://raw.githubusercontent.com/alexar76/treasury/refs/heads/main/docs/badges/license.svg" alt="License: MIT" /></a>
 </p>
 <!-- /aicom-readme-badges -->
+
+<!-- aicom-mirror-notice -->
+> 🔄 Synced from the [AI-Factory monorepo](https://github.com/alexar76/aicom) (append-only history). **Pull requests are welcome** — merged PRs are imported back and re-synced here. [Issues](https://github.com/alexar76/treasury/issues) · [Pull requests](https://github.com/alexar76/treasury/pulls)
 
 <p align="center">
   <strong>The only key that can pay a red-team bounty — and it is not the key that finds the bug.</strong>
