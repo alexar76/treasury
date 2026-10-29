@@ -15,6 +15,9 @@ services:
       TREASURY_KEY_PATH: /data/treasury_signing_key
       TREASURY_LEDGER_PATH: /data/bounty_ledger.jsonl
       TREASURY_CORS_ORIGINS: ${TREASURY_CORS_ORIGINS:-*}
+      # Whose X-Real-IP / X-Forwarded-For count: the host nginx, through the docker gateway
+      # (Vulnetix GCVE-110-VULN-PYPI-2026-000637).
+      ORACLE_TRUSTED_PROXIES: ${ORACLE_TRUSTED_PROXIES:-127.0.0.1/32,::1/128,gateway}
       # The pubkeys of independently-operated verifiers (e.g. Metis) whose confirmation is required
       # for high/critical payouts.
       MOMUS_EXTERNAL_VERIFIERS: ${MOMUS_EXTERNAL_VERIFIERS:-}
