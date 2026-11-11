@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.5] - 2026-11-11
+
+### Fixed
+
+- `/explain` is a dry run. It called the settling `authorize`, so it paid the bounty and recorded a decision, and the
+  caller's later `/authorize` was refused as a duplicate with a different decision record. It now decides with
+  `settle=False, record=False` and says `"dry_run": true`. Found by the money-flow audit of 2026-11-11
+  (satellites-6).
+- Requires `aimarket-momus>=0.2.1`. Its `PayoutGate.authorize` is the first to take `record=`; with 0.2.0 the dry
+  run raises `TypeError`. Publish MOMUS 0.2.1 first.
+
 ## [0.1.4] - 2026-10-28
 
 ### Security
