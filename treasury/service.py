@@ -369,9 +369,14 @@ def build_app() -> FastAPI:
             verdicts = [_verdict_from_dict(v) for v in body.verdicts]
         except (TypeError, ValueError) as exc:
             raise HTTPException(status_code=400, detail=f"malformed: {exc}") from None
-        decision = gate.authorize(finding, verdicts, deposit_posted_usd=body.deposit_posted_usd)
+        # A dry run: the gate decides but neither settles nor records. /explain used to call the
+        # settling authorize, so it paid the bounty and the caller's later /authorize was refused
+        # as a duplicate, with a different decision record (audit 2026-11-11, satellites-6).
+        decision = gate.authorize(finding, verdicts, deposit_posted_usd=body.deposit_posted_usd,
+                                  settle=False, record=False)
         note = await explain_decision(decision.to_dict())
-        return {"decision": decision.to_dict(), "explanation": note}
+        return {"decision": decision.to_dict(), "explanation": note, "dry_run": True,
+                "note": "advisory: nothing was settled or recorded; POST /authorize decides"}
 
     return app
 

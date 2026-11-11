@@ -294,3 +294,27 @@ async def test_token_and_production_take_precedence_over_local_opt_ins(
         response = await c.post("/vault/fund", json={"amount_usd": 200.0},
                                 headers={"X-Treasury-Client": supplied})
     assert response.status_code == want
+
+
+@pytest.mark.asyncio
+async def test_explain_is_a_dry_run_and_authorize_still_pays(treasury_client, tmp_path):
+    """Audit 2026-11-11, satellites-6: /explain called the settling authorize, so it paid the bounty
+    and the caller's /authorize was then refused as a duplicate. And a gate-approved share now
+    reserves what it needs from a funded vault: no manual /vault/reserve."""
+    client, ext, keydir = treasury_client
+    from momus.findings import FindingSigner
+    scanner = FindingSigner(keydir + "/scanner.key")
+    v1 = FindingSigner(keydir + "/v1.key")
+    f = _finding(scanner, "high")
+    payload = {"finding": dataclasses.asdict(f),
+               "verdicts": [dataclasses.asdict(_confirm(ext, f)), dataclasses.asdict(_confirm(v1, f))],
+               "deposit_posted_usd": 25}
+    async with client as c:
+        assert (await c.post("/vault/fund", json={"amount_usd": 200.0})).status_code == 200
+        explained = (await c.post("/explain", json=payload)).json()
+        assert explained["dry_run"] is True and explained["decision"]["state"] != "paid"
+        assert (await c.get("/vault")).json()["balance_usd"] == 200.0
+        dec = (await c.post("/authorize", json=payload)).json()
+        assert dec["state"] == "paid", dec["reasons"]
+        vs = (await c.get("/vault")).json()
+        assert vs["balance_usd"] == 150.0 and vs["reserved_usd"] == 0.0
